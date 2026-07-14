@@ -1,0 +1,187 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_CLOUDWATCH",
+      "label": "CloudWatch",
+      "description": "Grafana CloudWatch data source",
+      "type": "datasource",
+      "pluginId": "cloudwatch",
+      "pluginName": "CloudWatch"
+    },
+    {
+      "name": "AWS_ACCOUNT_ID",
+      "label": "AWS Account ID",
+      "description": "12-digit AWS account ID used to build CloudWatch Logs ARNs",
+      "type": "constant",
+      "value": "000000000000"
+    }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "stats count(*) as Requests",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/nginx/access:*", "name": "/document-app/nginx/access" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "HTTP Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "filter @message like /\\s4[0-9][0-9]\\s/\n| stats count(*) as ClientErrors",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/nginx/access:*", "name": "/document-app/nginx/access" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "HTTP 4xx Responses",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "filter @message like /\\s5[0-9][0-9]\\s/\n| stats count(*) as ServerErrors",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/nginx/access:*", "name": "/document-app/nginx/access" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "HTTP 5xx Responses",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "stats count(*) as LambdaLogEvents",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/aws/lambda/SecurityIncidentResponse:*", "name": "/aws/lambda/SecurityIncidentResponse" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "Lambda Log Events",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "fields @timestamp, @message, @logStream\n| sort @timestamp desc\n| limit 100",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/aws/lambda/SecurityIncidentResponse:*", "name": "/aws/lambda/SecurityIncidentResponse" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "Security Incident Response - Lambda Logs",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 7 },
+      "id": 6,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "fields @timestamp, @message\n| sort @timestamp desc\n| limit 100",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/nginx/access:*", "name": "/document-app/nginx/access" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "Nginx Access Logs",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 19 },
+      "id": 7,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "fields @timestamp, @message\n| sort @timestamp desc\n| limit 100",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/nginx/error:*", "name": "/document-app/nginx/error" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "Nginx Error Logs",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 19 },
+      "id": 8,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "expression": "fields @timestamp, @message\n| filter @message like /(?i)(error|failed|exception|warning)/\n| sort @timestamp desc\n| limit 100",
+          "logGroups": [{ "arn": "arn:aws:logs:ap-southeast-1:${AWS_ACCOUNT_ID}:log-group:/document-app/system:*", "name": "/document-app/system" }],
+          "queryMode": "Logs",
+          "refId": "A",
+          "region": "ap-southeast-1"
+        }
+      ],
+      "title": "System Warnings and Errors",
+      "type": "logs"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["aws", "cloudwatch", "logs", "security", "document-app"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Document App - Security Logs Monitoring",
+  "uid": null,
+  "version": 1,
+  "weekStart": ""
+}
