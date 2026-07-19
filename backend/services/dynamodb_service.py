@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import boto3
@@ -32,13 +33,37 @@ def save_document_metadata(doc_id, filename, original_name, uploader, size, file
         'uploaded_at': datetime.utcnow().isoformat(),
         'scan_status': 'PENDING_SCAN',
         'download_allowed': False,
+        'status': 'ACTIVE',
     })
 
 
-def list_documents():
+def list_documents(status='active'):
     table = get_table(os.getenv('DYNAMODB_DOCUMENTS_TABLE'))
-    response = table.scan()
-    items = [_json_safe(item) for item in response.get('Items', [])]
+    items = []
+    scan_args = {}
+    while True:
+        response = table.scan(**scan_args)
+        items.extend(response.get('Items', []))
+        last_key = response.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        scan_args['ExclusiveStartKey'] = last_key
+
+    items = [_json_safe(item) for item in items]
+    normalized_status = status.lower()
+    if normalized_status == 'active':
+        items = [
+            item for item in items
+            if str(item.get('status', 'ACTIVE')).upper() != 'DELETED'
+        ]
+    elif normalized_status == 'deleted':
+        items = [
+            item for item in items
+            if str(item.get('status', 'ACTIVE')).upper() == 'DELETED'
+        ]
+    elif normalized_status != 'all':
+        raise ValueError('Unsupported document status')
+
     items.sort(key=lambda x: x.get('uploaded_at', ''), reverse=True)
     return items
 
@@ -53,3 +78,69 @@ def get_document(doc_id):
 def delete_document(doc_id):
     table = get_table(os.getenv('DYNAMODB_DOCUMENTS_TABLE'))
     table.delete_item(Key={'document_id': doc_id})
+
+
+def update_document(doc_id, values):
+    table = get_table(os.getenv('DYNAMODB_DOCUMENTS_TABLE'))
+    names = {}
+    attributes = {}
+    assignments = []
+
+    for index, (key, value) in enumerate(values.items()):
+        name_token = f'#n{index}'
+        value_token = f':v{index}'
+        names[name_token] = key
+        attributes[value_token] = value
+        assignments.append(f'{name_token} = {value_token}')
+
+    response = table.update_item(
+        Key={'document_id': doc_id},
+        UpdateExpression='SET ' + ', '.join(assignments),
+        ExpressionAttributeNames=names,
+        ExpressionAttributeValues=attributes,
+        ConditionExpression='attribute_exists(document_id)',
+        ReturnValues='ALL_NEW',
+    )
+    return _json_safe(response.get('Attributes', {}))
+
+
+def save_version_audit(doc_id, event_type, actor, **details):
+    table_name = os.getenv(
+        'DYNAMODB_VERSION_AUDIT_TABLE',
+        'DocumentVersionAudit',
+    )
+    timestamp = datetime.now(timezone.utc).isoformat()
+    event_id = f'{timestamp}#{uuid.uuid4()}'
+    item = {
+        'document_id': doc_id,
+        'event_id': event_id,
+        'event_type': event_type,
+        'actor': actor,
+        'created_at': timestamp,
+        **{
+            key: value
+            for key, value in details.items()
+            if value is not None
+        },
+    }
+    get_table(table_name).put_item(
+        Item=item,
+        ConditionExpression=(
+            'attribute_not_exists(document_id) '
+            'AND attribute_not_exists(event_id)'
+        ),
+    )
+    return _json_safe(item)
+
+
+def list_version_audit(doc_id):
+    table_name = os.getenv(
+        'DYNAMODB_VERSION_AUDIT_TABLE',
+        'DocumentVersionAudit',
+    )
+    response = get_table(table_name).query(
+        KeyConditionExpression='document_id = :document_id',
+        ExpressionAttributeValues={':document_id': doc_id},
+        ScanIndexForward=False,
+    )
+    return [_json_safe(item) for item in response.get('Items', [])]

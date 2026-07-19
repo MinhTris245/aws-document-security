@@ -99,4 +99,30 @@ def list_file_versions(filename):
 def delete_file(filename):
     s3 = get_s3_client()
     bucket = os.getenv('S3_BUCKET_NAME')
-    s3.delete_object(Bucket=bucket, Key=filename)
+    return s3.delete_object(Bucket=bucket, Key=filename)
+
+
+def delete_file_version(filename, version_id):
+    s3 = get_s3_client()
+    bucket = os.getenv('S3_BUCKET_NAME')
+    return s3.delete_object(
+        Bucket=bucket,
+        Key=filename,
+        VersionId=version_id,
+    )
+
+
+def restore_file_version(filename, version_id):
+    s3 = get_s3_client()
+    bucket = os.getenv('S3_BUCKET_NAME')
+    response = s3.copy_object(
+        Bucket=bucket,
+        Key=filename,
+        CopySource={
+            'Bucket': bucket,
+            'Key': filename,
+            'VersionId': version_id,
+        },
+        MetadataDirective='COPY',
+    )
+    return response.get('VersionId')
