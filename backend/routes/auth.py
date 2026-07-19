@@ -2,7 +2,10 @@ import os
 from datetime import datetime, timedelta
 
 import jwt
+from botocore.exceptions import BotoCoreError, ClientError
 from flask import Blueprint, jsonify, request
+
+from services.cognito_service import CognitoAuthError, CognitoConfigError, login_with_cognito
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -21,6 +24,16 @@ def login():
 
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
+
+    if os.getenv('AUTH_PROVIDER', 'demo').lower() == 'cognito':
+        try:
+            return jsonify(login_with_cognito(username, password))
+        except CognitoAuthError as exc:
+            return jsonify({'error': str(exc)}), 401
+        except CognitoConfigError as exc:
+            return jsonify({'error': str(exc)}), 500
+        except (BotoCoreError, ClientError) as exc:
+            return jsonify({'error': 'Cannot authenticate with Cognito', 'detail': str(exc)}), 502
 
     user = USERS.get(username)
     if not user or user['password'] != password:
