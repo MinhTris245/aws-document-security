@@ -1,13 +1,19 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / '.env')
 
 app = Flask(__name__)
-CORS(app)
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', '*').split(',')
+    if origin.strip()
+]
+CORS(app, origins=cors_origins)
 
 from routes.auth import auth_bp
 from routes.documents import documents_bp

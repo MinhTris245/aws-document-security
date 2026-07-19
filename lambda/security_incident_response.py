@@ -20,6 +20,11 @@ ALLOWED_INSTANCE_IDS = {
     for value in os.getenv("ALLOWED_INSTANCE_IDS", "").split(",")
     if value.strip()
 }
+PROTECTED_INSTANCE_IDS = {
+    value.strip()
+    for value in os.getenv("PROTECTED_INSTANCE_IDS", "").split(",")
+    if value.strip()
+}
 TAG_MIN_SEVERITY = float(os.getenv("TAG_MIN_SEVERITY", "7"))
 INCIDENT_PORTAL_URL = os.getenv("INCIDENT_PORTAL_URL", "").rstrip("/")
 
@@ -60,7 +65,16 @@ def get_resource_id(detail):
 
 
 def is_allowed_instance(instance_id):
-    return bool(instance_id and instance_id in ALLOWED_INSTANCE_IDS)
+    return bool(
+        instance_id
+        and instance_id in ALLOWED_INSTANCE_IDS
+        and instance_id not in PROTECTED_INSTANCE_IDS
+    )
+
+
+def ensure_not_protected_instance(instance_id):
+    if instance_id in PROTECTED_INSTANCE_IDS:
+        raise ValueError("Instance is protected and cannot be modified by automated response")
 
 
 def incident_table():
@@ -234,6 +248,7 @@ def quarantine_approved(event):
     incident_id = event.get("incident_id", "")
     approved_by = event.get("approved_by", "")
 
+    ensure_not_protected_instance(instance_id)
     if not is_allowed_instance(instance_id):
         raise ValueError("Instance is not in ALLOWED_INSTANCE_IDS")
     if not incident_id or not approved_by:
@@ -285,6 +300,7 @@ def restore_approved(event):
     instance_id = event.get("instance_id", "")
     incident_id = event.get("incident_id", "")
     approved_by = event.get("approved_by", "")
+    ensure_not_protected_instance(instance_id)
     if not is_allowed_instance(instance_id):
         raise ValueError("Instance is not in ALLOWED_INSTANCE_IDS")
     if not incident_id or not approved_by:
@@ -324,6 +340,7 @@ def stop_approved(event):
     instance_id = event.get("instance_id", "")
     incident_id = event.get("incident_id", "")
     approved_by = event.get("approved_by", "")
+    ensure_not_protected_instance(instance_id)
     if not is_allowed_instance(instance_id):
         raise ValueError("Instance is not in ALLOWED_INSTANCE_IDS")
     if not incident_id or not approved_by:
