@@ -1,3 +1,4 @@
+import os
 import uuid
 from pathlib import Path
 
@@ -13,6 +14,7 @@ documents_bp = Blueprint('documents', __name__)
 
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt'}
 MAX_FILE_SIZE = 20 * 1024 * 1024
+QUARANTINE_PREFIX = os.getenv('S3_QUARANTINE_PREFIX', 'quarantine').strip('/')
 
 
 @documents_bp.route('/documents', methods=['GET'])
@@ -46,7 +48,7 @@ def upload_document():
         return jsonify({'error': 'File is larger than 20 MB'}), 400
 
     doc_id = str(uuid.uuid4())
-    filename = f'{doc_id}_{original_name}'
+    filename = f'{QUARANTINE_PREFIX}/{doc_id}_{original_name}'
 
     try:
         upload_file(file, filename)
@@ -61,7 +63,12 @@ def upload_document():
     except (BotoCoreError, ClientError) as exc:
         return jsonify({'error': 'Cannot upload document to AWS', 'detail': str(exc)}), 502
 
-    return jsonify({'message': 'Upload successful', 'document_id': doc_id}), 201
+    return jsonify({
+        'message': 'Upload successful',
+        'document_id': doc_id,
+        'scan_status': 'PENDING_SCAN',
+        'download_allowed': False,
+    }), 201
 
 
 @documents_bp.route('/documents/download/<doc_id>', methods=['GET'])
@@ -71,6 +78,14 @@ def download_document(doc_id):
         doc = get_document(doc_id)
         if not doc:
             return jsonify({'error': 'Document not found'}), 404
+
+        scan_status = str(doc.get('scan_status', 'UNSCANNED')).upper()
+        if scan_status != 'CLEAN':
+            return jsonify({
+                'error': 'Document download is locked until the malware scan confirms it is clean',
+                'scan_status': scan_status,
+                'download_allowed': False,
+            }), 423
 
         url = generate_download_url(doc['filename'])
         return jsonify({'download_url': url})

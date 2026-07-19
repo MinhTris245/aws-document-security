@@ -30,6 +30,8 @@ def save_document_metadata(doc_id, filename, original_name, uploader, size, file
         'size': size,
         'file_type': file_type,
         'uploaded_at': datetime.utcnow().isoformat(),
+        'scan_status': 'PENDING_SCAN',
+        'download_allowed': False,
     })
 
 
