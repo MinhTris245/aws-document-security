@@ -16,6 +16,7 @@ def health():
         's3': {'ok': False},
         'documents_table': {'ok': False},
         'incidents_table': {'ok': False},
+        'version_audit_table': {'ok': False},
     }
 
     try:
@@ -27,6 +28,7 @@ def health():
     for key, env_name in (
         ('documents_table', 'DYNAMODB_DOCUMENTS_TABLE'),
         ('incidents_table', 'DYNAMODB_INCIDENTS_TABLE'),
+        ('version_audit_table', 'DYNAMODB_VERSION_AUDIT_TABLE'),
     ):
         try:
             get_table(os.getenv(env_name)).load()
