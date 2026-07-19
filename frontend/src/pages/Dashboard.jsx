@@ -13,6 +13,11 @@ export default function Dashboard() {
   const [typeFilter, setTypeFilter] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
   const [toast, setToast] = useState('');
+  const [versionDocument, setVersionDocument] = useState(null);
+  const [versions, setVersions] = useState([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionFile, setVersionFile] = useState(null);
+  const [versionUploading, setVersionUploading] = useState(false);
   const role = localStorage.getItem('role');
 
   useEffect(() => {
@@ -78,6 +83,67 @@ export default function Dashboard() {
       setError(err.response?.data?.error || 'Cannot download file');
     } finally {
       setActionId('');
+    }
+  }
+
+  async function loadVersions(doc) {
+    setVersionsLoading(true);
+    setError('');
+    try {
+      const res = await api.get(`/documents/${doc.document_id}/versions`);
+      setVersions(res.data.versions || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Cannot load document versions');
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  async function handleViewVersions(doc) {
+    setVersionDocument(doc);
+    setVersions([]);
+    setVersionFile(null);
+    await loadVersions(doc);
+  }
+
+  async function handleDownloadVersion(versionId) {
+    if (!versionDocument) return;
+    setActionId(versionId);
+    try {
+      const res = await api.get(
+        `/documents/${versionDocument.document_id}/versions/download`,
+        { params: { version_id: versionId } },
+      );
+      window.open(res.data.download_url, '_blank', 'noopener,noreferrer');
+      setToast('Version download link opened');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Cannot download document version');
+    } finally {
+      setActionId('');
+    }
+  }
+
+  async function handleUploadVersion(event) {
+    event.preventDefault();
+    if (!versionDocument || !versionFile) return;
+
+    const formData = new FormData();
+    formData.append('file', versionFile);
+    setVersionUploading(true);
+    setError('');
+    try {
+      await api.post(
+        `/documents/${versionDocument.document_id}/versions`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setVersionFile(null);
+      setToast('New document version uploaded');
+      await loadVersions(versionDocument);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Cannot upload document version');
+    } finally {
+      setVersionUploading(false);
     }
   }
 
@@ -231,6 +297,13 @@ export default function Dashboard() {
                       <td>{formatDate(doc.uploaded_at)}</td>
                       <td className="text-end">
                         <button
+                          className="btn btn-sm btn-outline-secondary me-2"
+                          onClick={() => handleViewVersions(doc)}
+                          disabled={actionId === doc.document_id}
+                        >
+                          Versions
+                        </button>
+                        <button
                           className="btn btn-sm btn-primary me-2"
                           onClick={() => handleDownload(doc)}
                           disabled={actionId === doc.document_id}
@@ -278,6 +351,102 @@ export default function Dashboard() {
                 {actionId === pendingDelete.document_id ? 'Deleting...' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {versionDocument && (
+        <div className="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="versions-title">
+          <div className="confirm-modal" style={{ maxWidth: '900px', width: 'calc(100% - 2rem)' }}>
+            <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <h2 id="versions-title" className="panel-title mb-1">Document versions</h2>
+                <div className="text-muted">
+                  {versionDocument.original_name || versionDocument.filename}
+                </div>
+              </div>
+              <button
+                className="btn-close"
+                type="button"
+                aria-label="Close"
+                onClick={() => setVersionDocument(null)}
+                disabled={versionUploading}
+              />
+            </div>
+
+            <form className="border rounded p-3 mb-3" onSubmit={handleUploadVersion}>
+              <label className="form-label fw-bold">Upload a new version</label>
+              <div className="d-flex flex-column flex-md-row gap-2">
+                <input
+                  className="form-control"
+                  type="file"
+                  key={versionFile ? versionFile.name : 'empty-version-file'}
+                  onChange={event => setVersionFile(event.target.files[0] || null)}
+                  disabled={versionUploading}
+                />
+                <button
+                  className="btn btn-primary text-nowrap"
+                  type="submit"
+                  disabled={!versionFile || versionUploading}
+                >
+                  {versionUploading ? 'Uploading...' : 'Upload version'}
+                </button>
+              </div>
+              <div className="form-text">The new file must have the same file type as the current document.</div>
+            </form>
+
+            {versionsLoading && <div className="py-4 text-muted">Loading versions...</div>}
+
+            {!versionsLoading && versions.length === 0 && (
+              <div className="alert alert-light border">No versions were found for this document.</div>
+            )}
+
+            {!versionsLoading && versions.length > 0 && (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Version ID</th>
+                      <th>Modified</th>
+                      <th>Size</th>
+                      <th>Status</th>
+                      <th className="text-end">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {versions.map(version => (
+                      <tr key={version.version_id}>
+                        <td title={version.version_id}>
+                          <span className="muted-small">{version.version_id.slice(0, 16)}...</span>
+                        </td>
+                        <td>{formatDate(version.last_modified)}</td>
+                        <td>{formatSize(version.size)}</td>
+                        <td>
+                          {version.is_delete_marker ? (
+                            <span className="status-label text-danger">Deleted</span>
+                          ) : version.is_latest ? (
+                            <span className="status-badge ok">Latest</span>
+                          ) : (
+                            <span className="status-label">Previous</span>
+                          )}
+                        </td>
+                        <td className="text-end">
+                          {!version.is_delete_marker && (
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => handleDownloadVersion(version.version_id)}
+                              disabled={actionId === version.version_id}
+                            >
+                              Download
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
