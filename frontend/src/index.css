@@ -358,6 +358,27 @@ a {
   background: var(--success-soft);
 }
 
+.status-label.clean {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.status-label.pending_scan {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.status-label.infected,
+.status-label.scan_failed {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.status-label.unscanned {
+  color: #475569;
+  background: #e2e8f0;
+}
+
 .filter-bar {
   display: flex;
   flex-wrap: wrap;

@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Navbar from '../components/Navbar';
 import api from '../services/api';
 
+const SCAN_STATUS_LABELS = {
+  PENDING_SCAN: 'Pending scan',
+  CLEAN: 'Clean',
+  INFECTED: 'Infected',
+  SCAN_FAILED: 'Scan failed',
+  UNSCANNED: 'Unscanned',
+};
+
 export default function Dashboard() {
   const [docs, setDocs] = useState([]);
   const [incidents, setIncidents] = useState([]);
@@ -74,6 +82,11 @@ export default function Dashboard() {
   }
 
   async function handleDownload(doc) {
+    if (!canDownload(doc)) {
+      setError('This document cannot be downloaded until the malware scan confirms it is clean.');
+      return;
+    }
+
     setActionId(doc.document_id);
     try {
       const res = await api.get(`/documents/download/${doc.document_id}`);
@@ -180,6 +193,20 @@ export default function Dashboard() {
     return <span className={`status-badge ${ok ? 'ok' : ''}`}>{label}: {ok ? 'OK' : 'Check'}</span>;
   }
 
+  function normalizedScanStatus(doc) {
+    return String(doc.scan_status || 'UNSCANNED').toUpperCase();
+  }
+
+  function canDownload(doc) {
+    return normalizedScanStatus(doc) === 'CLEAN';
+  }
+
+  function scanStatusBadge(doc) {
+    const status = normalizedScanStatus(doc);
+    const label = SCAN_STATUS_LABELS[status] || status;
+    return <span className={`status-label ${status.toLowerCase()}`}>{label}</span>;
+  }
+
   return (
     <div className="app-shell">
       <Navbar />
@@ -280,6 +307,7 @@ export default function Dashboard() {
                     <th>Owner</th>
                     <th>Type</th>
                     <th>Size</th>
+                    <th>Malware scan</th>
                     <th>Uploaded</th>
                     <th className="text-end">Actions</th>
                   </tr>
@@ -294,6 +322,7 @@ export default function Dashboard() {
                       <td>{doc.uploader}</td>
                       <td><span className="status-label">{doc.file_type || '-'}</span></td>
                       <td>{formatSize(doc.size)}</td>
+                      <td>{scanStatusBadge(doc)}</td>
                       <td>{formatDate(doc.uploaded_at)}</td>
                       <td className="text-end">
                         <button
@@ -306,9 +335,10 @@ export default function Dashboard() {
                         <button
                           className="btn btn-sm btn-primary me-2"
                           onClick={() => handleDownload(doc)}
-                          disabled={actionId === doc.document_id}
+                          disabled={actionId === doc.document_id || !canDownload(doc)}
+                          title={canDownload(doc) ? 'Download clean document' : 'Download is locked until the malware scan reports CLEAN'}
                         >
-                          Download
+                          {normalizedScanStatus(doc) === 'PENDING_SCAN' ? 'Scanning...' : 'Download'}
                         </button>
                         {role === 'admin' && (
                           <button
